@@ -47,6 +47,7 @@ N_grams create_N_Grams(const std::string& from, const std::string& to) { //creat
 	std::wstring w;
 
 	std::wifstream file(from,std::fstream::binary);
+	if (!file.is_open()) throw std::filesystem::filesystem_error(std::string("invalid input file"), std::error_code::error_code());
 
 	wchar_t current_symbol;
 
@@ -100,7 +101,15 @@ TextClassifier::TextClassifier(const std::list<std::pair<N_grams, std::string>>&
 
 
 std::string TextClassifier::Classificate_file(const std::string& filename) {
-	auto grams = create_N_Grams(filename, filename + "_N_grams.txt");
+	N_grams grams;
+	try {
+		grams = create_N_Grams(filename, filename + "_N_grams.txt");
+	}
+	catch (const std::filesystem::filesystem_error& f) {
+		throw std::filesystem::filesystem_error("invalid file: " + filename, std::error_code::error_code());
+	}
+
+	
 
 	std::sort(grams.begin(), grams.end(), [grams](const std::pair<std::wstring, unsigned>& f, const std::pair<std::wstring, unsigned>& s) {
 		return my_count(grams, f) < my_count(grams, s);
@@ -143,12 +152,17 @@ std::string TextClassifier::Classificate_file(const std::string& filename) {
 }
 
 void TextClassifier::create_categories_table() {
-	for (auto& i : std::filesystem::directory_iterator(categories_directory)) {
-		const std::filesystem::path curr_p = i.path();
+	try {
+		for (auto& i : std::filesystem::directory_iterator(categories_directory)) {
+			const std::filesystem::path curr_p = i.path();
 
-		auto lst = create_N_Grams(curr_p.string(), curr_p.filename().string());
+			auto lst = create_N_Grams(curr_p.string(), curr_p.filename().string());
 
-		l.push_back({ lst ,curr_p.string() }); //create tables of n-grams for all files
+			l.push_back({ lst ,curr_p.string() }); //create tables of n-grams for all files
+		}
+	}
+	catch (const std::filesystem::filesystem_error& fs) {
+		throw std::invalid_argument("categories directory is invalid");
 	}
 
 	remove_N_grams_duplicates_and_sort(l);
@@ -164,8 +178,12 @@ void TextClassifier::create_categories_table() {
 }
 
 void TextClassifier::info_about_all_texts() {
-
-	for (auto& dir : std::filesystem::directory_iterator(input_directory)) {
-		std::cout <<"The most matching text for " << dir.path().string() << ": "<< Classificate_file(dir.path().string()) << std::endl;
+	try {
+		for (auto& dir : std::filesystem::directory_iterator(input_directory)) {
+			std::cout << "The most matching text for " << dir.path().string() << ": " << Classificate_file(dir.path().string()) << std::endl;
+		}
+	}
+	catch (const std::filesystem::filesystem_error) {
+		throw std::invalid_argument("input directory is invalid");
 	}
 }
