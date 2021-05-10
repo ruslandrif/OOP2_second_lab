@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 #include <list>
-
+#include <unordered_map>
 using N_grams = std::vector<std::pair<std::wstring,unsigned>>;
 
 
@@ -13,10 +13,9 @@ using N_grams = std::vector<std::pair<std::wstring,unsigned>>;
 
 
 
-N_grams create_N_Grams(const std::string& from, const std::string& to); //create N-grams for file "from" and write them to file "to"
 
-void remove_N_grams_duplicates_and_sort(std::list<std::pair<N_grams, std::string>>& l); //sort N-grams list from less to most frequent n-gram,
-																						// remove duplicates, and calculating number of occurences
+
+
 
 
 
@@ -42,7 +41,13 @@ private:
 
 	std::list<std::pair<N_grams, std::string>> l; //list with the n-grams tables
 
+	N_grams create_N_Grams(const std::string& from, const std::string& to); //create N-grams for file "from" and write them to file "to"
 
 	long max_distance; //we will calculate it after creating table of categories
+
+	std::unordered_map<std::wstring, unsigned> count;
+
+	void remove_N_grams_duplicates_and_sort(std::list<std::pair<N_grams, std::string>>& l); //sort N-grams list from less to most frequent n-gram,
+																						// remove duplicates, and calculating number of occurences
 };
 

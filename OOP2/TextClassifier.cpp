@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <string>
 #include <utility>
-
+#include <unordered_map>
 unsigned my_count(const N_grams& n, std::pair<std::wstring, unsigned> val) { //count the number of occurencies of the string from val in the table of n-grams
 	unsigned res = 0;                                                        //helping function
 	for (auto& i : n) {
@@ -18,19 +18,22 @@ unsigned my_count(const N_grams& n, std::pair<std::wstring, unsigned> val) { //c
 
 //using N_grams = std::vector<std::pair<std::wstring, unsigned>>;
 
-void remove_N_grams_duplicates_and_sort(std::list<std::pair<N_grams, std::string>>& l) {
-	
+void TextClassifier::remove_N_grams_duplicates_and_sort(std::list<std::pair<N_grams, std::string>>& l) {
+
 	//int count = 0;
 	for (auto& ng : l) {
-		
+		count.clear();
 		//std::cout << count++ << std::endl;
-		std::sort(ng.first.begin(), ng.first.end(), [ng](const std::pair<std::wstring, unsigned>& f, const std::pair<std::wstring, unsigned>& s) {
-			return my_count(ng.first, f) < my_count(ng.first, s);
+		for (auto& i : ng.first) {
+			++count[i.first];
+		}
+		std::sort(ng.first.begin(), ng.first.end(), [&ng,this](const std::pair<std::wstring, unsigned>& f, const std::pair<std::wstring, unsigned>& s) {
+			return count[f.first] < count[s.first];
 		
 		}); //sorting by number of occurencies
 
 		for (auto& i : ng.first) {
-			i.second = my_count(ng.first, i); //remember number of occurencies
+			i.second = count[i.first];
 		}
 
 		ng.first.erase(std::unique(ng.first.begin(), ng.first.end()), ng.first.end()); //remove duplicates
@@ -40,7 +43,7 @@ void remove_N_grams_duplicates_and_sort(std::list<std::pair<N_grams, std::string
 
 
 
-N_grams create_N_Grams(const std::string& from, const std::string& to) { //create N-grams for file "from" and write them to file "to"
+N_grams TextClassifier::create_N_Grams(const std::string& from, const std::string& to) { //create N-grams for file "from" and write them to file "to"
 
 	N_grams result;
 
@@ -51,31 +54,26 @@ N_grams create_N_Grams(const std::string& from, const std::string& to) { //creat
 
 	wchar_t current_symbol;
 
-	w.clear();
-
 	while(!file.eof()) {
 		file.read(&current_symbol, 1);
 
-		if (iswspace(current_symbol)) {
-			if (!w.empty()) {
+		if (iswspace(current_symbol) && !w.empty()) {
+			
 				
 				w.push_back(wchar_t('_'));
 
-				std::wstring w2;
-				w2.push_back(wchar_t('_'));  //weird adding _, but std::basic_string::insert did not work for me for some reason
-				w2 += w;
-				w = w2;
 
-				for (int i = LOWER_NGRAM_LEN; i <= UPPER_NGRAM_LEN && i <= w.size(); ++i) {
-					for (int j = 0; j <= w.size() - i; j += 1) {
-						std::wstring N_gram = w.substr(j, i);
+				for (unsigned i = LOWER_NGRAM_LEN; i <= UPPER_NGRAM_LEN && i <= w.size(); ++i) {
+					for (unsigned j = 0; j <= w.size() - i; ++j) {
+						//std::wstring N_gram = w.substr(j, i);
 						
-						result.push_back({ N_gram,0});
+						result.push_back({ w.substr(j, i),0});
 						
 					}
 				}
-			}
+			
 			w.clear();
+			w.push_back(wchar_t('_'));
 		}
 
 		else 
@@ -109,15 +107,19 @@ std::string TextClassifier::Classificate_file(const std::string& filename) {
 		throw std::filesystem::filesystem_error("invalid file: " + filename, std::error_code::error_code());
 	}
 
+	this->count.clear();
+	for (auto& i : grams) {
+		++count[i.first];
+	}
 	
 
-	std::sort(grams.begin(), grams.end(), [grams](const std::pair<std::wstring, unsigned>& f, const std::pair<std::wstring, unsigned>& s) {
-		return my_count(grams, f) < my_count(grams, s);
+	std::sort(grams.begin(), grams.end(), [&grams,this](const std::pair<std::wstring, unsigned>& f, const std::pair<std::wstring, unsigned>& s) {
+		return count[f.first] < count[s.first];
 
 		});
 
 	for (auto& i : grams) {
-		i.second = my_count(grams, i);                                   //creating n-gram table for input file, sort it and remove duplicates
+		i.second = count[i.first];                                   //creating n-gram table for input file, sort it and remove duplicates
 	}
 
 	grams.erase(std::unique(grams.begin(), grams.end()), grams.end());
@@ -133,12 +135,14 @@ std::string TextClassifier::Classificate_file(const std::string& filename) {
 		int count = 0;
 		
 		for (auto& n_gram : grams) {
-			N_grams ng = category.first;
+			//N_grams ng = category.first;
 
-			curr_distance += std::find_if(ng.begin(), ng.end(), [n_gram](const std::pair<std::wstring, unsigned>& n) {return n.first == n_gram.first; }) == ng.end() ? //that n-gram exist in the category profile? 
+			auto _find = std::find_if(category.first.begin(), category.first.end(), [&n_gram](const std::pair<std::wstring, unsigned>& n) {return n.first == n_gram.first; });
+
+			curr_distance += _find == category.first.end() ? //that n-gram exist in the category profile? 
 				max_distance : //add max distance, if not
-				(std::find_if(ng.begin(), ng.end(), [n_gram](const std::pair<std::wstring, unsigned>& n) {return n.first == n_gram.first; }) - ng.begin()) - count; //if exist, add the length between them
-			count++;
+				_find - category.first.begin() - count; //if exist, add the length between them
+			++count;
 		}
 
 		if (curr_distance < min_distance) {
@@ -152,13 +156,14 @@ std::string TextClassifier::Classificate_file(const std::string& filename) {
 }
 
 void TextClassifier::create_categories_table() {
+	l.clear();
 	try {
 		for (auto& i : std::filesystem::directory_iterator(categories_directory)) {
 			const std::filesystem::path curr_p = i.path();
 
-			auto lst = create_N_Grams(curr_p.string(), curr_p.filename().string());
+			
 
-			l.push_back({ lst ,curr_p.string() }); //create tables of n-grams for all files
+			l.push_back({ create_N_Grams(curr_p.string(), curr_p.filename().string()) ,curr_p.string() }); //create tables of n-grams for all files
 		}
 	}
 	catch (const std::filesystem::filesystem_error& fs) {
